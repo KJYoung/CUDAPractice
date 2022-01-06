@@ -237,8 +237,8 @@ void unGappedAlignCPU(char* vectorCurr, char* vectorPrev, char queryi, char* tar
 #define HUMANHEMALPHA0 "MVLSPADKTNVKA"
 #define HUMANHEMBETA0  "MVHLTPEEKSA"
 
-#define QUERYSEQUENCE HUMANHEMALPHA
-#define TARGETSEQUENCE HUMANHEMBETA
+#define QUERYSEQUENCE HUMANHEMALPHA5
+#define TARGETSEQUENCE HUMANHEMBETA5
 int main() {
     using namespace std;
     string hemA, hemB;
@@ -253,19 +253,19 @@ int main() {
         char *query = humanHemAlpha;
         char *target = humanHemBeta;
 
+        int targetSize = strlen(target);
+        printf("Start : with target size %d \n", targetSize);
+
         const clock_t begin_time = clock();
         char max = 0;
-
-        int targetSize = strlen(target);
 
         char *vectorCurr = (char *) malloc(targetSize * sizeof(char));
         char *vectorPrev = (char *) malloc(targetSize * sizeof(char));
         memset(vectorPrev, 0, targetSize * sizeof(char));
 
-        printf("Start : with target size %d \n", targetSize);
+
         for (int tx = 0; tx < iter; tx++) {
             for (int i = 0; query[i] != '\0'; i++) {
-
                 unGappedAlignCPU(vectorCurr, vectorPrev, query[i], target, &max, targetSize);
 
                 char *vectorTmp = vectorPrev;
@@ -290,6 +290,8 @@ int main() {
         char *query, *target;
         query = humanHemAlpha;
 
+        const clock_t begin_time = clock();
+
         cudaMalloc((void **) &target, targetSize * sizeof(char));
         cudaMemcpy(target, humanHemBeta, targetSize, cudaMemcpyHostToDevice);
 
@@ -299,8 +301,6 @@ int main() {
         cudaMemset(vectorCurr, 0, targetSize*sizeof(char));
         cudaMemset(vectorPrev, 0, targetSize*sizeof(char));
 
-        const clock_t begin_time = clock();
-
         char *max;
         cudaMalloc((void **) &max, NUM_CUDA_THREAD * sizeof(char));
         cudaMemset(max, 0, NUM_CUDA_THREAD*sizeof(char));
@@ -308,7 +308,6 @@ int main() {
         char maxRes = 0;
         char *maxHost = (char*)malloc(NUM_CUDA_THREAD * sizeof(char));
         for (int tx = 0; tx < iter; tx++) {
-            //for (int i = 0; query[i] != '\0'; i++) { // device memory access is not allowed.print
             for(int i=0; i<querySize; i++){
                 cudaMemset(vectorCurr, 0, sizeof(char));
                 unGappedAlignGPU_stripedArr<<<1,NUM_CUDA_THREAD>>>(vectorCurr, vectorPrev, query[i], target, max, targetSize);
@@ -316,9 +315,11 @@ int main() {
 
                 cudaMemcpy(maxHost, max, NUM_CUDA_THREAD * sizeof(char), cudaMemcpyDeviceToHost);
 
-                for(int i=0; i<targetSize; i++){
-                    if(maxRes < maxHost[i])
-                        maxRes = maxHost[i];
+                for(int ini=0; ini<NUM_CUDA_THREAD; ini++){
+                    if(maxRes < maxHost[ini]) {
+                        maxRes = maxHost[ini];
+                        //printf("Report [%d] at query %d.%d\n", maxRes, i, ini);
+                    }
                 }
 
                 char* vectorTmp = vectorPrev;
